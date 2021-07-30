@@ -31,12 +31,15 @@
 package com.raywenderlich.android.bubblesaffirmations.util
 
 import android.app.*
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.LocusId
+import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.BitmapFactory
 import android.graphics.drawable.Icon
+import android.net.Uri
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import com.raywenderlich.android.bubblesaffirmations.R
@@ -102,7 +105,17 @@ class NotificationHelper(
 
     // Update the shortcuts so the most frequently used are at the bottom
     private fun updateShortcuts(importantCategory: Category?) {
-
+        var shortcuts = createShortcut()
+        if (importantCategory != null) {
+            shortcuts = shortcuts.sortedByDescending {
+                it.id == importantCategory.shortcutId
+            }
+        }
+        val maxCount = shortcutManager.maxShortcutCountPerActivity
+        if (shortcuts.size > maxCount) {
+            shortcuts = shortcuts.take(maxCount)
+        }
+        shortcutManager.addDynamicShortcuts(shortcuts)
     }
 
     fun showNotification(quoteAndCategory: QuoteAndCategory, fromUser: Boolean) {
@@ -147,6 +160,30 @@ class NotificationHelper(
                     quoteAndCategory.category
                 )
             )
+    }
+
+    // Create dynamic shortcut
+    private fun createDynamicShortcutIntent(category: Category): Intent {
+        return Intent(context, MainActivity::class.java).setAction(Intent.ACTION_VIEW)
+            .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            .setData(Uri.parse(
+                "https://raywenderlich.android.bubblesaffirmations.com"
+                        + "/quote/${category.categoryId}"
+            ))
+    }
+
+    // create shortcut
+    private fun createShortcut() = categories.map { category ->
+        ShortcutInfo.Builder(context, category.shortcutId)
+            .setLocusId(LocusId(category.shortcutId))
+            .setActivity(ComponentName(context, MainActivity::class.java))
+            .setShortLabel(category.name)
+            .setIcon(createShortcutIcon(category))
+            .setLongLived(true)
+            .setCategories(setOf("com.example.android.bubbles.category.TEXT_SHARE_TARGET"))
+            .setIntent(createDynamicShortcutIntent(category))
+            .setPerson(createPerson(createIcon(category), category))
+            .build()
     }
 
     // create shortcut icon

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<share-target android:targetClass="com.raywenderlich.android.bubblesaffirmations.ui.main.MainActivity"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+    <data android:mimeType="text/plain" />
+    <category android:name=
+        "com.example.android.bubbles.category.TEXT_SHARE_TARGET" />
+</share-target>
