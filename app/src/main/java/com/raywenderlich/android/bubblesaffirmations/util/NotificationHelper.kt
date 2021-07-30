@@ -31,22 +31,18 @@
 package com.raywenderlich.android.bubblesaffirmations.util
 
 import android.app.*
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.LocusId
-import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.BitmapFactory
 import android.graphics.drawable.Icon
-import android.net.Uri
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import com.raywenderlich.android.bubblesaffirmations.R
 import com.raywenderlich.android.bubblesaffirmations.model.Category
 import com.raywenderlich.android.bubblesaffirmations.model.relations.QuoteAndCategory
 import com.raywenderlich.android.bubblesaffirmations.ui.main.MainActivity
-import com.raywenderlich.android.bubblesaffirmations.ui.quote.QuoteBubbleActivity
 import java.lang.System.currentTimeMillis
 import java.util.*
 
@@ -54,104 +50,135 @@ class NotificationHelper(
     private val categories: List<Category>,
     private val context: Context
 ) {
-  companion object {
-    private const val CHANNEL_QUOTES = "quotes"
-    private const val REQUEST_CONTENT = 1
-    private const val REQUEST_BUBBLE = 2
-  }
-
-
-  // Get the notification manager
-  private val notificationManager: NotificationManager =
-      context.getSystemService() ?: throw IllegalStateException()
-
-  // Get the shortcut manager
-  private val shortcutManager: ShortcutManager =
-      context.getSystemService() ?: throw IllegalStateException()
-
-  // Dismiss a notification
-  fun dismissNotification(id: Int) {
-
-  }
-
-  // sets up the notification channels
-  fun setUpNotificationChannels() {
-    if (notificationManager.getNotificationChannel(
-            CHANNEL_QUOTES) == null) {
-      val channel = NotificationChannel(
-          CHANNEL_QUOTES,
-          context.getString(
-              R.string.channel_quotes),
-          NotificationManager.IMPORTANCE_HIGH
-      ).apply {
-        description = context.getString(
-            R.string.channel_quotes_description)
-      }
-      notificationManager.createNotificationChannel(channel)
+    companion object {
+        private const val CHANNEL_QUOTES = "quotes"
+        private const val REQUEST_CONTENT = 1
+        private const val REQUEST_BUBBLE = 2
     }
-    updateShortcuts(null)
-  }
 
-  // Update the shortcuts so the most frequently used are at the bottom
-  private fun updateShortcuts(importantCategory: Category?) {
+    // Get the notification manager
+    private val notificationManager: NotificationManager =
+        context.getSystemService() ?: throw IllegalStateException()
 
-  }
+    // Get the shortcut manager
+    private val shortcutManager: ShortcutManager =
+        context.getSystemService() ?: throw IllegalStateException()
 
-  fun showNotification(quoteAndCategory: QuoteAndCategory, fromUser: Boolean) {
-    // Create Icon
-    val icon = createIcon(quoteAndCategory.category)
+    // Dismiss a notification
+    fun dismissNotification(id: Int) {
 
-    // Create the Person
+    }
+
+    // Create person
+
+    private fun createPerson(icon: Icon, category: Category): Person {
+        return Person.Builder()
+            .setName(category.name)
+            .setIcon(icon)
+            .build()
+    }
+
+    // sets up the notification channels
+    fun setUpNotificationChannels() {
+        if (notificationManager.getNotificationChannel(
+                CHANNEL_QUOTES
+            ) == null
+        ) {
+            val channel = NotificationChannel(
+                CHANNEL_QUOTES,
+                context.getString(
+                    R.string.channel_quotes
+                ),
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = context.getString(
+                    R.string.channel_quotes_description
+                )
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+        updateShortcuts(null)
+    }
+
+    // Update the shortcuts so the most frequently used are at the bottom
+    private fun updateShortcuts(importantCategory: Category?) {
+
+    }
+
+    fun showNotification(quoteAndCategory: QuoteAndCategory, fromUser: Boolean) {
+        // Create Icon
+        val icon = createIcon(quoteAndCategory.category)
+
+        // Create the Person
+        val person = createPerson(icon, quoteAndCategory.category)
+
+        // Create the Notification
+        val notification = createNotification(quoteAndCategory, icon, person)
+
+        // Build and Display the Notification
+        notificationManager.notify(quoteAndCategory.category.categoryId, notification.build())
+    }
+
+    // Create an icon
+    private fun createIcon(category: Category): Icon =
+        Icon.createWithAdaptiveBitmapContentUri(category.iconUri)
 
 
-    // Create the Notification
-    val notification = createNotification(quoteAndCategory, icon)
+    // Create the notification
+    private fun createNotification(
+        quoteAndCategory: QuoteAndCategory,
+        icon: Icon,
+        person: Person
+    ): Notification.Builder {
+        return Notification.Builder(context, CHANNEL_QUOTES)
+            .setContentTitle(quoteAndCategory.category.name)
+            .setShortcutId(quoteAndCategory.category.shortcutId)
+            .setLocusId(LocusId(quoteAndCategory.category.shortcutId))
+            .setSmallIcon(icon)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setStyle(Notification.MessagingStyle(person)
+                .setGroupConversation(false)
+                .addMessage(quoteAndCategory.quote.quoteText,
+                    currentTimeMillis(), person))
+            .setShowWhen(true)
+            .setContentIntent(
+                createPendingMainIntent(
+                    REQUEST_CONTENT,
+                    quoteAndCategory.category
+                )
+            )
+    }
 
-    // Build and Display the Notification
-    notificationManager.notify(quoteAndCategory.category.categoryId, notification.build())
-  }
+    // create shortcut icon
+    private fun createShortcutIcon(category: Category): Icon {
+        return Icon.createWithAdaptiveBitmap(context.resources.assets.open("${category.name.toLowerCase(
+            Locale.ROOT)}.png").use {
+                input ->
+            BitmapFactory.decodeStream(input)
+        })
+    }
 
-  // Create an icon
-  private fun createIcon(category: Category): Icon =
-      Icon.createWithAdaptiveBitmapContentUri(category.iconUri)
+    // create the pending intent for the notification when it doesn't bubble
+    private fun createPendingMainIntent(requestCode: Int, category: Category):
+            PendingIntent {
+        val contentUri =
+            ("https://raywenderlich.android.bubblesaffirmations.com/quote/" +
+                    "${category.categoryId}")
+                .toUri()
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
+            Intent(context, MainActivity::class.java)
+                .setAction(Intent.ACTION_VIEW)
+                .setData(contentUri),
+            PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
 
-
-  // Create the notification
-  private fun createNotification(
-      quoteAndCategory: QuoteAndCategory,
-      icon: Icon
-  ): Notification.Builder {
-    return Notification.Builder(context, CHANNEL_QUOTES)
-        .setContentTitle(quoteAndCategory.category.name)
-        .setContentText(quoteAndCategory.quote.quoteText)
-        .setSmallIcon(icon)
-        .setLargeIcon(icon)
-        .setShowWhen(true)
-        .setContentIntent(createPendingMainIntent(REQUEST_CONTENT,
-            quoteAndCategory.category))
-  }
-
-  // create the pending intent for the notification when it doesn't bubble
-  private fun createPendingMainIntent(requestCode: Int, category: Category):
-      PendingIntent {
-    val contentUri =
-        ("https://raywenderlich.android.bubblesaffirmations.com/quote/" +
-            "${category.categoryId}")
-            .toUri()
-    return PendingIntent.getActivity(
-        context,
-        requestCode,
-        Intent(context, MainActivity::class.java)
-            .setAction(Intent.ACTION_VIEW)
-            .setData(contentUri),
-        PendingIntent.FLAG_UPDATE_CURRENT
-    )
-  }
-
-  // Determines if this notification channel and shortcut id can bubble
-  fun canBubble(category: Category): Boolean {
-    return false
-  }
+    // Determines if this notification channel and shortcut id can bubble
+    fun canBubble(category: Category): Boolean {
+        return false
+    }
 }
 
 
